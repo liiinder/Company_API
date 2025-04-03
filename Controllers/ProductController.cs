@@ -22,11 +22,11 @@ namespace Company_API.Controllers
         }
 
         [HttpGet("{id}")]
-        public async Task<IResult> GetProductById(Guid id)
+        public async Task<IResult> GetProductById(string id)
         {
             var product = await _productRepo.GetByIdAsync(id);
 
-            if (product is null) return Results.NotFound();
+            if (product is null) return Results.NotFound($"No product found with id: {id}");
 
             return Results.Ok(product);
         }
@@ -36,37 +36,37 @@ namespace Company_API.Controllers
         {
             var product = await _productRepo.GetByNameAsync(name);
 
-            if (product is null) return Results.NotFound();
+            if (product is null) return Results.NotFound($"No product found with name: {name}");
 
             return Results.Ok(product);
         }
 
         [HttpPost]
-        public async Task<IResult> AddProduct(ProductDTO newProduct)
+        public async Task<IResult> AddProduct(Product newProduct)
         {
             if (newProduct is null) return Results.BadRequest();
 
             var addedProduct = await _productRepo.AddAsync(newProduct);
-            return Results.Created("url...", addedProduct);
+            return Results.Created("Created product:", addedProduct);
         }
 
         [HttpPut("{id}")]
-        public async Task<IResult> EditProduct(Guid id, ProductDTO updatedProduct)
+        public async Task<IResult> EditProduct(string id, Product updatedProduct)
         {
             if (updatedProduct is null) return Results.BadRequest();
 
             var product = await _productRepo.EditAsync(id, updatedProduct);
 
-            if (product is null) return Results.NotFound(id);
+            if (product is null) return Results.NotFound($"No product found with id: {id}");
 
             return Results.Ok(product);
         }
 
         [HttpDelete("{id}")]
-        public IResult DeleteProduct(Guid id)
+        public IResult DeleteProduct(string id)
         {
             var product = GetProductById(id);
-            if (product is null) return Results.NotFound();
+            if (product is null) return Results.NotFound($"No product found with id: {id}");
 
             _productRepo.Remove(id);
             return Results.NoContent();

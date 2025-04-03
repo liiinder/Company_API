@@ -1,5 +1,5 @@
-﻿using Company_API.DTO;
-using Company_API.Interfaces;
+﻿using Company_API.Interfaces;
+using Company_API.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Company_API.Controllers
@@ -20,28 +20,28 @@ namespace Company_API.Controllers
             return Results.Ok(await _customerRepo.GetAllAsync());
         }
 
-        [HttpGet("{id}")]
-        public async Task<IResult> GetCustomerById(Guid id)
-        {
-            var result = await _customerRepo.GetByIdAsync(id);
-
-            if (result is null) return Results.NotFound(id);
-
-            return Results.Ok(result);
-        }
-
         [HttpGet("email/{email}")]
         public async Task<IResult> GetCustomerByEmail(string email)
         {
             var result = await _customerRepo.GetByEmailAsync(email);
 
-            if (result is null) return Results.NotFound(email);
+            if (result is null) return Results.NotFound($"No customer found with email: {email}");
+
+            return Results.Ok(result);
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IResult> GetCustomerById(string id)
+        {
+            var result = await _customerRepo.GetByIdAsync(id);
+
+            if (result is null) return Results.NotFound($"No customer found with id: {id}");
 
             return Results.Ok(result);
         }
 
         [HttpPost]
-        public async Task<IResult> AddCustomer(CustomerDTO newCustomer)
+        public async Task<IResult> AddCustomer(Customer newCustomer)
         {
             if (newCustomer is null) return Results.BadRequest();
 
@@ -50,25 +50,25 @@ namespace Company_API.Controllers
         }
 
         [HttpPut("{id}")]
-        public async Task<IResult> EditCustomer(Guid id, CustomerDTO updatedCustomer)
+        public async Task<IResult> EditCustomer(string id, Customer updatedCustomer)
         {
             if (updatedCustomer is null) return Results.BadRequest();
 
             var result = await _customerRepo.EditAsync(id, updatedCustomer);
 
-            if (result is null) return Results.NotFound(id);
+            if (result is null) return Results.NotFound($"No customer found with id: {id}");
 
             return Results.Ok(result);
         }
 
-        //ToDo: Konstig bugg när man ändrar en kund och sen försöker hämta alla så måste jag reloada Scalar för att kunna hämta igen.
-        // Eller är det bara en 30s default timeout ? 
+        ////ToDo: Konstig bugg när man ändrar en kund och sen försöker hämta alla så måste jag reloada Scalar för att kunna hämta igen.
+        //// Eller är det bara en 30s default timeout ? 
 
         [HttpDelete("{id}")]
-        public IResult DeleteCustomer(Guid id)
+        public IResult DeleteCustomer(string id)
         {
-            var customer = GetCustomerById(id);
-            if (customer is null) return Results.NotFound();
+            var customer = _customerRepo.GetByIdAsync(id);
+            if (customer is null) return Results.NotFound($"No customer found with id: {id}");
 
             _customerRepo.Remove(id);
             return Results.NoContent();

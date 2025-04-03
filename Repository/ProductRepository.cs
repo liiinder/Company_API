@@ -1,108 +1,94 @@
 ﻿using Company_API.Interfaces;
 using Company_API.Models;
-using Microsoft.EntityFrameworkCore;
+using MongoDB.Bson;
+using MongoDB.Driver;
 
 namespace Company_API.Repository
 {
     public class ProductRepository : IProductRepository
     {
-        private readonly AppDbContext context;
+        private readonly IMongoCollection<Product> _collection;
+        private const string CollectionName = "Product";
+        private const string DatabaseName = "LinderCompanyDb";
+        private string ConnectionString = "mongodb://localhost:27017";
 
-        public ProductRepository(AppDbContext context)
+        public ProductRepository()
         {
-            this.context = context;
-            //this.context.Database.EnsureDeleted();
-            this.context.Database.EnsureCreated();
+            var config = new ConfigurationBuilder().AddUserSecrets<ProductRepository>().Build();
+
+            ConnectionString = config["connectionUri"];
+
+            var client = new MongoClient(ConnectionString);
+            var db = client.GetDatabase(DatabaseName);
+            _collection = db.GetCollection<Product>(CollectionName);
         }
 
-        public Product? Add(ProductDTO product)
+        public async Task<Product?> AddAsync(Product product)
         {
-            var addedProduct = product.ToModel();
-            context.Products.Add(addedProduct);
-
-            context.SaveChanges();
-            return addedProduct;
+            await _collection.InsertOneAsync(product);
+            return product;
         }
 
-        public async Task<Product?> AddAsync(ProductDTO product)
+        public async Task<Product?> EditAsync(string id, Product updatedProduct)
         {
-            var addedProduct = product.ToModel();
-            context.Products.Add(addedProduct);
+            Product product;
 
-            await context.SaveChangesAsync();
-            return addedProduct;
-        }
-
-        public Product? Edit(Guid id, ProductDTO updatedProduct)
-        {
-            var product = context.Products.FirstOrDefault(p => p.Id == id);
-
-            if (product is not null)
+            try
             {
-                product.Name = updatedProduct.Name;
-                product.Description = updatedProduct.Description;
-                product.Price = updatedProduct.Price;
-                product.Status = updatedProduct.Status;
+                var filter = Builders<Product>.Filter.Eq("_id", ObjectId.Parse(id));
+                product = await _collection.Find(filter).FirstOrDefaultAsync();
 
-                context.SaveChanges();
+                if (product is not null)
+                {
+                    updatedProduct.Id = id;
+                    product = updatedProduct;
+                    await _collection.ReplaceOneAsync(filter, updatedProduct);
+                }
+            }
+            catch
+            {
+                return null;
             }
 
             return product;
         }
 
-        public async Task<Product?> EditAsync(Guid id, ProductDTO updatedProduct)
+        public async Task<Product?> GetByIdAsync(string id)
         {
-            var product = await context.Products.FirstOrDefaultAsync(p => p.Id == id);
-
-            if (product is not null)
-            {
-                product.Name = updatedProduct.Name;
-                product.Description = updatedProduct.Description;
-                product.Price = updatedProduct.Price;
-                product.Status = updatedProduct.Status;
-
-                context.SaveChanges();
-            }
-
-            return product;
-        }
-
-        public Product? GetById(Guid id)
-        {
-            return context.Products.FirstOrDefault(p => p.Id == id);
-        }
-        public async Task<Product?> GetByIdAsync(Guid id)
-        {
-            return await context.Products.FirstOrDefaultAsync(p => p.Id == id);
-        }
-
-
-        public IEnumerable<Product> GetAll()
-        {
-            return context.Products.ToList();
+            var filter = Builders<Product>.Filter.Eq("_id", ObjectId.Parse(id));
+            return await _collection.Find(filter).FirstOrDefaultAsync();
         }
 
         public async Task<IEnumerable<Product>> GetAllAsync()
         {
-            return await context.Products.ToListAsync();
+
+            return await _collection.Find(new BsonDocument()).ToListAsync();
         }
 
-        public void Remove(Guid id)
+        public void Remove(string id)
         {
-            var product = context.Products.FirstOrDefault(p => p.Id == id);
-
-            context.Products.Remove(product);
-            context.SaveChanges();
-        }
-
-        public Product? GetByName(string name)
-        {
-            return context.Products.FirstOrDefault(p => p.Name == name);
+            try
+            {
+                var filter = Builders<Product>.Filter.Eq("_id", ObjectId.Parse(id));
+                _collection.DeleteOne(filter);
+            }
+            catch { }
         }
 
         public async Task<Product?> GetByNameAsync(string name)
         {
-            return await context.Products.FirstOrDefaultAsync(p => p.Name == name);
+            Product product;
+
+            try
+            {
+                var filter = Builders<Product>.Filter.Eq("Name", name);
+                product = await _collection.Find(filter).FirstOrDefaultAsync();
+            }
+            catch
+            {
+                return null;
+            }
+            return product;
         }
     }
 }

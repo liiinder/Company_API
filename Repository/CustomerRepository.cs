@@ -1,107 +1,84 @@
-﻿using Company_API.DTO;
-using Company_API.Interfaces;
+﻿using Company_API.Interfaces;
 using Company_API.Models;
-using Microsoft.EntityFrameworkCore;
+using MongoDB.Bson;
+using MongoDB.Driver;
 
 namespace Company_API.Repository
 {
     public class CustomerRepository : ICustomerRepository
     {
-        private readonly AppDbContext context;
+        private readonly IMongoCollection<Customer> _collection;
+        private const string CollectionName = "Customer";
+        private const string DatabaseName = "LinderCompanyDb";
+        private string ConnectionString = "mongodb://localhost:27017";
 
-        public CustomerRepository(AppDbContext context)
+
+        public CustomerRepository()
         {
-            this.context = context;
-            //this.context.Database.EnsureDeleted();
-            this.context.Database.EnsureCreated();
+            var config = new ConfigurationBuilder().AddUserSecrets<ProductRepository>().Build();
+
+            ConnectionString = config["connectionUri"];
+
+            var client = new MongoClient(ConnectionString);
+            var db = client.GetDatabase(DatabaseName);
+            _collection = db.GetCollection<Customer>(CollectionName);
         }
 
-        public Customer? Add(CustomerDTO customer)
+        public async Task<Customer?> AddAsync(Customer customer)
         {
-            var addedCustomer = customer.ToModel();
-            context.Customers.Add(addedCustomer);
-
-            context.SaveChanges();
-            return addedCustomer;
-        }
-
-        public async Task<Customer?> AddAsync(CustomerDTO customer)
-        {
-            var addedCustomer = customer.ToModel();
-            context.Customers.Add(addedCustomer);
-
-            await context.SaveChangesAsync();
-            return addedCustomer;
-        }
-
-        public Customer? Edit(Guid id, CustomerDTO updatedCustomer)
-        {
-            var customer = context.Customers.FirstOrDefault(c => c.Id == id);
-
-            if (customer is not null)
-            {
-                customer.FirstName = updatedCustomer.FirstName;
-                customer.LastName = updatedCustomer.LastName;
-                customer.Email = updatedCustomer.Email;
-                context.SaveChanges();
-            }
-
+            await _collection.InsertOneAsync(customer);
             return customer;
         }
 
-        public async Task<Customer?> EditAsync(Guid id, CustomerDTO updatedCustomer)
+        public async Task<Customer?> GetByIdAsync(string id)
         {
+            var filter = Builders<Customer>.Filter.Eq("_id", ObjectId.Parse(id));
+            return await _collection.Find(filter).FirstOrDefaultAsync();
+        }
 
-            var customer = await context.Customers.FirstOrDefaultAsync(c => c.Id == id);
+        public async Task<Customer?> EditAsync(string id, Customer updatedCustomer)
+        {
+            Customer customer;
 
-            if (customer is not null)
+            try
             {
-                customer.FirstName = updatedCustomer.FirstName;
-                customer.LastName = updatedCustomer.LastName;
-                customer.Email = updatedCustomer.Email;
-                await context.SaveChangesAsync();
+                var filter = Builders<Customer>.Filter.Eq("_id", ObjectId.Parse(id));
+                customer = await _collection.Find(filter).FirstOrDefaultAsync();
+
+                if (customer is not null)
+                {
+                    updatedCustomer.Id = id;
+                    customer = updatedCustomer;
+                    await _collection.ReplaceOneAsync(filter, updatedCustomer);
+                }
+            }
+            catch
+            {
+                return null;
             }
 
             return customer;
-        }
-
-        public Customer? GetById(Guid id)
-        {
-            return context.Customers.FirstOrDefault(c => c.Id == id);
-        }
-
-        public async Task<Customer?> GetByIdAsync(Guid id)
-        {
-            return await context.Customers.FirstOrDefaultAsync(c => c.Id == id);
-        }
-
-        public Customer? GetByEmail(string email)
-        {
-            return context.Customers.FirstOrDefault(c => c.Email == email);
         }
 
         public async Task<Customer?> GetByEmailAsync(string email)
         {
-            return await context.Customers.FirstOrDefaultAsync(c => c.Email == email);
-        }
-
-        public IEnumerable<Customer> GetAll()
-        {
-            return context.Customers.ToList();
+            var filter = Builders<Customer>.Filter.Eq("Email", email);
+            return await _collection.Find(filter).FirstOrDefaultAsync();
         }
 
         public async Task<IEnumerable<Customer>> GetAllAsync()
         {
-            return await context.Customers.ToListAsync();
-
+            return await _collection.Find(new BsonDocument()).ToListAsync();
         }
 
-        public void Remove(Guid id)
+        public void Remove(string id)
         {
-            var customer = context.Customers.FirstOrDefault(c => c.Id == id);
-
-            context.Customers.Remove(customer);
-            context.SaveChanges();
+            try
+            {
+                var filter = Builders<Customer>.Filter.Eq("_id", ObjectId.Parse(id));
+                _collection.DeleteOne(filter);
+            }
+            catch { }
         }
     }
 }

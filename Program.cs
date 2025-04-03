@@ -1,7 +1,5 @@
 using Company_API.Interfaces;
-using Company_API.Models;
 using Company_API.Repository;
-using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,8 +10,8 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
-
-builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite());
+builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
 var app = builder.Build();
 
